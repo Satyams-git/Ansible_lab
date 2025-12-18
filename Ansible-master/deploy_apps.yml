@@ -1,0 +1,61 @@
+---
+- name: Install Docker and Deploy Applications on Workers
+  hosts: workers
+  become: yes
+
+  vars:
+    # Worker 1 Application (nginx-app)
+    worker1_image: "satyamsri/nginx-app:latest"
+    worker1_name: "nginx-app"
+    worker1_port: 8081
+    worker1_container_port: 80
+
+    # Worker 2 Application (notes-app)
+    worker2_image: "satyamsri/notes-app:latest"
+    worker2_name: "notes-app"
+    worker2_port: 8082
+    worker2_container_port: 80
+
+  tasks:
+    # 1) Install Docker
+    - name: Install docker.io package
+      apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+
+    - name: Start and enable Docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    # 2) Pull correct app image based on worker
+    - name: Pull nginx-app on Worker1
+      command: docker pull {{ worker1_image }}
+      when: inventory_hostname == "worker1"
+
+    - name: Pull notes-app on worker2
+      command: docker pull {{ worker2_image }}
+      when: inventory_hostname == "worker2"
+
+    # 3) Remove existing containers
+    - name: Remove old nginx container on worker1
+      command: docker rm -f {{ worker1_name }}
+      ignore_errors: yes
+      when: inventory_hostname == "worker1"
+
+    - name: Remove old notes container on worker2
+      command: docker rm -f {{ worker2_name }}
+      ignore_errors: yes
+      when: inventory_hostname == "worker2"
+
+    # 4) Deploy correct container
+    - name: Run nginx-app on Worker1
+      command: docker run -d --name {{ worker1_name }} -p {{ worker1_port }}:{{ worker1_container_port }} {{ worker1_image }}
+      when: inventory_hostname == "worker1"
+
+    - name: Run notes-app on worker2
+      command: docker run -d --name {{ worker2_name }} -p {{ worker2_port }}:{{ worker2_container_port }} {{ worker2_image }}
+      when: inventory_hostname == "worker2"
+
